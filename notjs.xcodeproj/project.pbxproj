@@ -25,6 +25,7 @@
 /* Begin PBXFileReference section */
 		084B20552443711E00960D60 /* notjs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = notjs; sourceTree = BUILT_PRODUCTS_DIR; };
 		084B20582443711E00960D60 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		084B206424448C6A00960D60 /* main.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				084B20582443711E00960D60 /* main.cpp */,
+				084B206424448C6A00960D60 /* main.h */,
 			);
 			path = notjs;
 			sourceTree = "<group>";
@@ -238,6 +240,7 @@
 		084B205D2443711E00960D60 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -246,6 +249,7 @@
 		084B205E2443711E00960D60 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
