@@ -27,8 +27,8 @@ struct JSNumber;
 
 struct JSValue {
     virtual std::string serialize() const = 0;
-    virtual std::unique_ptr<JSValue> plus_operator(std::unique_ptr<JSValue> right) const = 0;
-    virtual std::unique_ptr<JSNumber> as_number() const = 0;
+    virtual std::shared_ptr<JSValue> plus_operator(std::shared_ptr<JSValue> right) const = 0;
+    virtual std::shared_ptr<JSNumber> as_number() const = 0;
     virtual ~JSValue() {};
 };
 
@@ -40,25 +40,27 @@ struct SourceFile;
 struct FunctionDeclaration;
 
 struct Scope {
-    std::map<std::string, std::unique_ptr<FunctionDeclaration>> functions {};
+    std::map<std::string, std::shared_ptr<FunctionDeclaration>> functions {};
+    std::map<std::string, std::shared_ptr<JSValue>> values {};
     void load(SourceFile& sourceFile);
 };
 
 struct Expression: Node {
-    virtual std::unique_ptr<JSValue> evaluate(Scope& scope) const = 0;
-    virtual std::unique_ptr<JSValue> call(Scope& scope) const = 0;
+    virtual std::shared_ptr<JSValue> evaluate(Scope& scope) const = 0;
+    virtual std::shared_ptr<JSValue> call(Scope& scope, std::vector<std::shared_ptr<JSValue>> values) const = 0;
+    virtual ~Expression() {};
 };
 
 struct Identifier: Expression {
     std::string text;
     Identifier(std::string text): text(text) {};
     void visit() const override;
-    std::unique_ptr<JSValue> evaluate(Scope &scope) const override;
-    std::unique_ptr<JSValue> call(Scope &scope) const override;
+    std::shared_ptr<JSValue> evaluate(Scope &scope) const override;
+    std::shared_ptr<JSValue> call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const override;
 };
 
 struct Statement: Node {
-    virtual std::unique_ptr<JSValue> evaluate(Scope& scope) const = 0;
+    virtual std::shared_ptr<JSValue> evaluate(Scope& scope) const = 0;
     virtual StatementKind getKind() const = 0;
     virtual ~Statement() {};
 };
