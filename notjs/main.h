@@ -9,6 +9,10 @@
 #ifndef main_h
 #define main_h
 
+#include <iostream>
+#include <vector>
+#include <map>
+
 enum class Token {
     Plus,
 };
@@ -42,12 +46,18 @@ struct FunctionDeclaration;
 struct Scope {
     std::map<std::string, std::shared_ptr<FunctionDeclaration>> functions {};
     std::map<std::string, std::shared_ptr<JSValue>> values {};
+};
+
+struct Chain {
+    std::vector<Scope> scopes {};
+    std::shared_ptr<JSValue> lookup_value(std::string name);
+    std::shared_ptr<FunctionDeclaration> lookup_function(std::string name);
     void load(SourceFile& sourceFile);
 };
 
 struct Expression: Node {
-    virtual std::shared_ptr<JSValue> evaluate(Scope& scope) const = 0;
-    virtual std::shared_ptr<JSValue> call(Scope& scope, std::vector<std::shared_ptr<JSValue>> values) const = 0;
+    virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
+    virtual std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const = 0;
     virtual ~Expression() {};
 };
 
@@ -55,12 +65,12 @@ struct Identifier: Expression {
     std::string text;
     Identifier(std::string text): text(text) {};
     void visit() const override;
-    std::shared_ptr<JSValue> evaluate(Scope &scope) const override;
-    std::shared_ptr<JSValue> call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const override;
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override;
+    std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override;
 };
 
 struct Statement: Node {
-    virtual std::shared_ptr<JSValue> evaluate(Scope& scope) const = 0;
+    virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
     virtual StatementKind getKind() const = 0;
     virtual ~Statement() {};
 };

@@ -1,7 +1,3 @@
-#include <iostream>
-#include <vector>
-#include <map>
-
 #include "main.h"
 
 struct JSNumber: JSValue {
@@ -87,16 +83,16 @@ struct FunctionDeclaration: Statement {
         body.visit();
     }
     
-    std::shared_ptr<JSValue> evaluate(Scope& scope) const override {
-        scope.functions.insert({ name.text, std::make_shared<FunctionDeclaration>(*this) });
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override {
+        chain.scopes.back().functions.insert({ name.text, std::make_shared<FunctionDeclaration>(*this) });
         return std::make_shared<JSUndefined>();
     }
     
-    std::shared_ptr<JSValue> execute(Scope& scope) const {
+    std::shared_ptr<JSValue> execute(Chain& chain) const {
         for (auto& statement: body.statements) {
-            statement->evaluate(scope);
+            statement->evaluate(chain);
             if (statement->getKind() == StatementKind::Return) {
-                return statement->evaluate(scope);
+                return statement->evaluate(chain);
             }
         }
         return std::make_shared<JSUndefined>();
@@ -110,30 +106,28 @@ struct FunctionDeclaration: Statement {
 void Identifier::visit() const {
     printf("Visit Identifier\n");
 }
-std::shared_ptr<JSValue> Identifier::evaluate(Scope& scope) const {
-    auto it = scope.values.find(text);
-    if (it == scope.values.end()) {
-        return std::make_shared<JSUndefined>();
-    } else {
-        return it->second;
-    }
-    return std::make_shared<JSUndefined>();
+std::shared_ptr<JSValue> Identifier::evaluate(Chain& chain) const {
+    return chain.lookup_value(text);
 }
-std::shared_ptr<JSValue> Identifier::call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const {
-    auto it = scope.functions.find(text);
-    if (it == scope.functions.end() ) {
-        return std::make_shared<JSUndefined>();
-    } else {
-        auto function = it->second;
-
+std::shared_ptr<JSValue> Identifier::call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const {
+    auto function = chain.lookup_function(text);
+    
+    if (function) {
+        auto function_scope = Scope {};
+        
         for (std::size_t i = 0; i != values.size(); ++i) {
             auto value = values[i];
             auto s = function->parameters.at(i).name.text;
-            scope.values.insert({ s, value });
+            function_scope.values.insert({ s, value });
         }
         
-        // @TODO: push and then pop scope
-        return function->execute(scope);
+        chain.scopes.push_back(function_scope);
+        
+        auto function_return_value = function->execute(chain);
+        
+        chain.scopes.pop_back();
+        
+        return function_return_value;
     }
 
     return std::make_shared<JSUndefined>();
@@ -148,11 +142,11 @@ struct NumericLiteral: Expression {
         printf("Visit NumericLiteral\n");
     }
     
-    std::shared_ptr<JSValue> evaluate(Scope& scope) const override {
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override {
         return std::make_shared<JSNumber>(std::stod(text));
     }
     
-    std::shared_ptr<JSValue> call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const override {
+    std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override {
         return std::make_shared<JSUndefined>();
     }
 };
@@ -170,16 +164,16 @@ struct BinaryExpression: Expression {
         right.visit();
     }
     
-    std::shared_ptr<JSValue> evaluate(Scope& scope) const override {
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override {
         switch (operatorToken) {
         case Token::Plus:
-            auto left_value = left.evaluate(scope);
-            auto right_value = right.evaluate(scope);
+            auto left_value = left.evaluate(chain);
+            auto right_value = right.evaluate(chain);
             return left_value->plus_operator(std::move(right_value));
         }
     }
     
-    std::shared_ptr<JSValue> call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const override {
+    std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override {
         return std::make_shared<JSUndefined>();
     }
 };
@@ -197,18 +191,18 @@ struct CallExpression: Expression {
         printf("Visit CallExpression\n");
     }
     
-    std::shared_ptr<JSValue> evaluate(Scope& scope) const override {
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override {
         std::vector<std::shared_ptr<JSValue>> values {};
         
         for (auto argument: arguments) {
-            auto value = argument->evaluate(scope);
+            auto value = argument->evaluate(chain);
             values.push_back(value);
         }
         
-        return expression.call(scope, values);
+        return expression.call(chain, values);
     }
     
-    std::shared_ptr<JSValue> call(Scope &scope, std::vector<std::shared_ptr<JSValue>> values) const override {
+    std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override {
         return std::make_shared<JSUndefined>();
     }
 };
@@ -224,8 +218,8 @@ struct ReturnStatement: Statement {
         expression.visit();
     }
     
-    std::shared_ptr<JSValue> evaluate(Scope& scope) const override {
-        return expression.evaluate(scope);
+    std::shared_ptr<JSValue> evaluate(Chain& chain) const override {
+        return expression.evaluate(chain);
     }
     
     StatementKind getKind() const override {
@@ -243,19 +237,42 @@ struct SourceFile {
         }
     }
     
-    void evaluate(Scope& scope) const {
+    void evaluate(Chain& chain) const {
         for (auto& statement: statements) {
-            statement->evaluate(scope);
+            statement->evaluate(chain);
         }
     }
 };
 
-void Scope::load(SourceFile& sourceFile) {
+void Chain::load(SourceFile& sourceFile) {
     sourceFile.evaluate(*this);
+}
+
+std::shared_ptr<JSValue> Chain::lookup_value(std::string name) {
+    for (auto scope: scopes) {
+        auto it = scope.values.find(name);
+        if (it != scope.values.end()) {
+            return it->second;
+        }
+    }
+    
+    return std::make_shared<JSUndefined>();
+}
+
+std::shared_ptr<FunctionDeclaration> Chain::lookup_function(std::string name) {
+    for (auto scope: scopes) {
+        auto it = scope.functions.find(name);
+        if (it != scope.functions.end()) {
+            return it->second;
+        }
+    }
+    return nullptr;
 }
 
 int main(int argc, const char* argv[]) {
     auto globalScope = Scope {};
+    auto chain = Chain {};
+    chain.scopes.push_back(globalScope);
     
     // function foo(n) { return n + 99; }
     auto identifier_foo = Identifier { "foo" };
@@ -280,14 +297,15 @@ int main(int argc, const char* argv[]) {
     source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_foo));
     source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
     
-    globalScope.load(source_file);
+    chain.load(source_file);
     
-    auto it = globalScope.functions.find("main");
-    if (it == globalScope.functions.end() ) {
+    auto main_function = chain.lookup_function("main");
+    if (!main_function) {
         std::cout << "No main function!" << std::endl;
-    } else {
-        std::cout << it->second->execute(globalScope)->serialize() << std::endl;
+        return 1;
     }
+    
+    std::cout << main_function->execute(chain)->serialize() << std::endl;
     
     return 0;
 }
