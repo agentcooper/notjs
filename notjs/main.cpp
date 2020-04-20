@@ -90,9 +90,9 @@ struct FunctionDeclaration: Statement {
     
     std::shared_ptr<JSValue> execute(Chain& chain) const {
         for (auto& statement: body.statements) {
-            statement->evaluate(chain);
+            auto value = statement->evaluate(chain);
             if (statement->getKind() == StatementKind::Return) {
-                return statement->evaluate(chain);
+                return value;
             }
         }
         return std::make_shared<JSUndefined>();
