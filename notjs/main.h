@@ -13,14 +13,18 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <math.h>
 
 enum class Token {
     Plus,
+    Minus,
+    EqualsEqualsEquals,
 };
 
 enum class StatementKind {
     FunctionDeclaration,
     Return,
+    If,
 };
 
 struct Node {
@@ -29,11 +33,15 @@ struct Node {
 
 struct JSString;
 struct JSNumber;
+struct JSBoolean;
 
 struct JSValue {
     virtual std::string serialize() const = 0;
     virtual std::shared_ptr<JSValue> plus_operator(std::shared_ptr<JSValue> right) const = 0;
+    virtual std::shared_ptr<JSValue> minus_operator(std::shared_ptr<JSValue> right) const = 0;
+    virtual std::shared_ptr<JSBoolean> equalsequalsequals_operator(std::shared_ptr<JSValue> right) const = 0;
     virtual std::shared_ptr<JSNumber> as_number() const = 0;
+    virtual std::shared_ptr<JSBoolean> as_boolean() const = 0;
     virtual ~JSValue() {};
 };
 
@@ -47,6 +55,7 @@ struct FunctionDeclaration;
 struct Scope {
     std::map<std::string, std::shared_ptr<FunctionDeclaration>> functions {};
     std::map<std::string, std::shared_ptr<JSValue>> values {};
+    std::string serialize() const;
 };
 
 struct Chain {

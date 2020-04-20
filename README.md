@@ -4,10 +4,10 @@ Very naive attempt to do a JS engine in C++17. Doing this for learning purposes.
 
 ## To-Do
 
-1. [ ] Passing parameters to a function
-2. [ ] Recursion
-3. [ ] Booleans, comparision operators
-4. [ ] Ternary expression
+1. [x] Passing parameters to a function
+2. [x] Recursion
+3. [x] Booleans, comparision operators
+4. [x] Ternary expression
 5. [ ] Parser
 6. [ ] Explore JIT and inline caching techniques
 
