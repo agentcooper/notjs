@@ -51,9 +51,9 @@ struct Scope {
 
 struct Chain {
     std::vector<Scope> scopes {};
-    std::shared_ptr<JSValue> lookup_value(std::string name);
-    std::shared_ptr<FunctionDeclaration> lookup_function(std::string name);
-    void load(SourceFile& sourceFile);
+    std::shared_ptr<JSValue> lookup_value(const std::string name) const;
+    std::shared_ptr<FunctionDeclaration> lookup_function(const std::string name) const;
+    void load(const SourceFile& sourceFile);
 };
 
 struct Expression: Node {
@@ -63,8 +63,8 @@ struct Expression: Node {
 };
 
 struct Identifier: Expression {
-    std::string text;
-    Identifier(std::string text): text(text) {};
+    const std::string text;
+    Identifier(const std::string text): text(text) {};
     void visit() const override;
     std::shared_ptr<JSValue> evaluate(Chain& chain) const override;
     std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override;

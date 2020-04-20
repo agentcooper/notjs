@@ -1,7 +1,7 @@
 #include "main.h"
 
 struct JSNumber: JSValue {
-    double value;
+    const double value;
     
     std::string serialize() const override {
         return std::to_string(value);
@@ -19,7 +19,7 @@ struct JSNumber: JSValue {
 };
 
 struct JSString: JSValue {
-    std::string value;
+    const std::string value;
     
     std::string serialize() const override {
         return value;
@@ -60,18 +60,18 @@ struct Block: Node {
 };
 
 struct Parameter {
-    Identifier name;
+    const Identifier name;
     
-    Parameter(Identifier name): name(name) {};
+    Parameter(const Identifier name): name(name) {};
 };
 
 struct FunctionDeclaration: Statement {
     StatementKind kind;
-    Identifier& name;
+    const Identifier& name;
     Block& body;
     std::vector<Parameter> parameters;
     
-    FunctionDeclaration(Identifier& name, Block& body, std::vector<Parameter> parameters):
+    FunctionDeclaration(const Identifier& name, Block& body, std::vector<Parameter> parameters):
         name(name),
         body(body),
         parameters(parameters)
@@ -134,9 +134,9 @@ std::shared_ptr<JSValue> Identifier::call(Chain& chain, std::vector<std::shared_
 }
 
 struct NumericLiteral: Expression {
-    std::string text;
+    const std::string text;
     
-    NumericLiteral(std::string text): text(text) {};
+    NumericLiteral(const std::string text): text(text) {};
     
     void visit() const override {
         printf("Visit NumericLiteral\n");
@@ -152,8 +152,8 @@ struct NumericLiteral: Expression {
 };
 
 struct BinaryExpression: Expression {
-    Expression& left;
-    Expression& right;
+    const Expression& left;
+    const Expression& right;
     Token operatorToken;
     
     BinaryExpression(Expression& left, Token operatorToken, Expression& right): left(left), operatorToken(operatorToken), right(right) {};
@@ -179,10 +179,10 @@ struct BinaryExpression: Expression {
 };
 
 struct CallExpression: Expression {
-    Expression& expression;
+    const Expression& expression;
     std::vector<std::shared_ptr<Expression>> arguments;
     
-    CallExpression(Expression& expression, std::vector<std::shared_ptr<Expression>> arguments):
+    CallExpression(const Expression& expression, std::vector<std::shared_ptr<Expression>> arguments):
         expression(expression),
         arguments(arguments)
         {};
@@ -244,11 +244,11 @@ struct SourceFile {
     }
 };
 
-void Chain::load(SourceFile& sourceFile) {
+void Chain::load(const SourceFile& sourceFile) {
     sourceFile.evaluate(*this);
 }
 
-std::shared_ptr<JSValue> Chain::lookup_value(std::string name) {
+std::shared_ptr<JSValue> Chain::lookup_value(const std::string name) const {
     for (auto scope: scopes) {
         auto it = scope.values.find(name);
         if (it != scope.values.end()) {
@@ -259,7 +259,7 @@ std::shared_ptr<JSValue> Chain::lookup_value(std::string name) {
     return std::make_shared<JSUndefined>();
 }
 
-std::shared_ptr<FunctionDeclaration> Chain::lookup_function(std::string name) {
+std::shared_ptr<FunctionDeclaration> Chain::lookup_function(const std::string name) const {
     for (auto scope: scopes) {
         auto it = scope.functions.find(name);
         if (it != scope.functions.end()) {
