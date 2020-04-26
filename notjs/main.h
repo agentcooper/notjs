@@ -27,15 +27,17 @@ enum class StatementKind {
     If,
 };
 
-struct Node {
+class Node {
+public:
     virtual void visit() const = 0;
 };
 
-struct JSString;
-struct JSNumber;
-struct JSBoolean;
+class JSString;
+class JSNumber;
+class JSBoolean;
 
-struct JSValue {
+class JSValue {
+public:
     virtual std::string serialize() const = 0;
     virtual std::shared_ptr<JSValue> plus_operator(std::shared_ptr<JSValue> right) const = 0;
     virtual std::shared_ptr<JSValue> minus_operator(std::shared_ptr<JSValue> right) const = 0;
@@ -45,33 +47,37 @@ struct JSValue {
     virtual ~JSValue() {};
 };
 
-struct Identifier;
-struct Block;
-struct Statement;
-struct SourceFile;
+class Identifier;
+class Block;
+class Statement;
+class SourceFile;
 
-struct FunctionDeclaration;
+class FunctionDeclaration;
 
-struct Scope {
+class Scope {
+public:
     std::map<std::string, std::shared_ptr<FunctionDeclaration>> functions {};
     std::map<std::string, std::shared_ptr<JSValue>> values {};
     std::string serialize() const;
 };
 
-struct Chain {
+class Chain {
+public:
     std::vector<Scope> scopes {};
     std::shared_ptr<JSValue> lookup_value(const std::string name) const;
     std::shared_ptr<FunctionDeclaration> lookup_function(const std::string name) const;
     void load(const SourceFile& sourceFile);
 };
 
-struct Expression: Node {
+class Expression: public Node {
+public:
     virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
     virtual std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const = 0;
     virtual ~Expression() {};
 };
 
-struct Identifier: Expression {
+class Identifier: public Expression {
+public:
     const std::string text;
     Identifier(const std::string text): text(text) {};
     void visit() const override;
@@ -79,7 +85,8 @@ struct Identifier: Expression {
     std::shared_ptr<JSValue> call(Chain& chain, std::vector<std::shared_ptr<JSValue>> values) const override;
 };
 
-struct Statement: Node {
+class Statement: public Node {
+public:
     virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
     virtual StatementKind getKind() const = 0;
     virtual ~Statement() {};

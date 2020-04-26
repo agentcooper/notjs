@@ -1,6 +1,7 @@
 #include "main.h"
 
-struct JSNumber : JSValue {
+class JSNumber : public JSValue {
+public:
   const double value;
 
   std::string serialize() const override { return std::to_string(value); };
@@ -32,7 +33,8 @@ struct JSNumber : JSValue {
   }
 };
 
-struct JSBoolean : JSValue {
+class JSBoolean : public JSValue {
+public:
   const bool value;
 
   std::string serialize() const override { return value ? "true" : "false"; };
@@ -63,7 +65,8 @@ struct JSBoolean : JSValue {
   }
 };
 
-struct JSString : JSValue {
+class JSString : public JSValue {
+public:
   const std::string value;
 
   std::string serialize() const override { return value; };
@@ -92,7 +95,8 @@ struct JSString : JSValue {
   }
 };
 
-struct JSUndefined : JSValue {
+class JSUndefined : public JSValue {
+public:
   std::string serialize() const override { return "undefined"; };
 
   std::shared_ptr<JSValue>
@@ -119,7 +123,8 @@ struct JSUndefined : JSValue {
   }
 };
 
-struct Block : Node {
+class Block : public Node {
+public:
   std::vector<std::shared_ptr<Statement>> statements;
 
   void visit() const override {
@@ -130,13 +135,15 @@ struct Block : Node {
   }
 };
 
-struct Parameter {
+class Parameter {
+public:
   const Identifier name;
 
   Parameter(const Identifier name) : name(name){};
 };
 
-struct FunctionDeclaration : Statement {
+class FunctionDeclaration : public Statement {
+public:
   StatementKind kind;
   const Identifier &name;
   Block &body;
@@ -199,7 +206,8 @@ Identifier::call(Chain &chain,
   return std::make_shared<JSUndefined>();
 }
 
-struct TrueKeyword : Expression {
+class TrueKeyword : public Expression {
+public:
   void visit() const override { printf("Visit TrueKeyword\n"); }
 
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
@@ -213,7 +221,8 @@ struct TrueKeyword : Expression {
   }
 };
 
-struct FalseKeyword : Expression {
+class FalseKeyword : public Expression {
+public:
   void visit() const override { printf("Visit FalseKeyword\n"); }
 
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
@@ -227,7 +236,8 @@ struct FalseKeyword : Expression {
   }
 };
 
-struct NumericLiteral : Expression {
+class NumericLiteral : public Expression {
+public:
   const std::string text;
 
   NumericLiteral(const std::string text) : text(text){};
@@ -245,7 +255,8 @@ struct NumericLiteral : Expression {
   }
 };
 
-struct BinaryExpression : Expression {
+class BinaryExpression : public Expression {
+public:
   const Expression &left;
   const Expression &right;
   const Token operatorToken;
@@ -265,15 +276,11 @@ struct BinaryExpression : Expression {
     case Token::Plus: {
       auto left_value = left.evaluate(chain);
       auto right_value = right.evaluate(chain);
-      //                std::cout << left_value->serialize() << " + " <<
-      //                right_value->serialize() << std::endl;
       return left_value->plus_operator(std::move(right_value));
     }
     case Token::Minus: {
       auto left_value = left.evaluate(chain);
       auto right_value = right.evaluate(chain);
-      //                std::cout << left_value->serialize() << " - " <<
-      //                right_value->serialize() << std::endl;
       return left_value->minus_operator(std::move(right_value));
     }
     case Token::EqualsEqualsEquals: {
@@ -291,7 +298,8 @@ struct BinaryExpression : Expression {
   }
 };
 
-struct ConditionalExpression : Expression {
+class ConditionalExpression : public Expression {
+public:
   const Expression &condition;
   const Expression &whenTrue;
   const Expression &whenFalse;
@@ -320,7 +328,8 @@ struct ConditionalExpression : Expression {
   }
 };
 
-struct CallExpression : Expression {
+class CallExpression : public Expression {
+public:
   const Expression &expression;
   std::vector<std::shared_ptr<Expression>> arguments;
 
@@ -348,7 +357,8 @@ struct CallExpression : Expression {
   }
 };
 
-struct IfStatement : Statement {
+class IfStatement : public Statement {
+public:
   const StatementKind kind;
   const Block &thenStatement;
   const BinaryExpression &expression;
@@ -377,7 +387,8 @@ struct IfStatement : Statement {
   StatementKind getKind() const override { return kind; }
 };
 
-struct ReturnStatement : Statement {
+class ReturnStatement : public Statement {
+public:
   const StatementKind kind;
   const Expression &expression;
 
@@ -396,7 +407,8 @@ struct ReturnStatement : Statement {
   StatementKind getKind() const override { return kind; }
 };
 
-struct SourceFile {
+class SourceFile {
+public:
   std::vector<std::shared_ptr<Statement>> statements;
 
   void visit() const {
