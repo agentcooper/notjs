@@ -143,6 +143,7 @@ public:
 class Block : public Node {
 public:
   std::vector<std::shared_ptr<Statement>> statements;
+  Block(std::vector<std::shared_ptr<Statement>> statements): statements(statements) {};
   
   void visit() const override {
     printf("Visit Block\n");
@@ -494,48 +495,48 @@ int main(int argc, const char *argv[]) {
   // fib
   auto identifier_fib = Identifier{"fib"};
   auto parameter_n = Parameter{Identifier{"n"}};
-  auto block_fib = Block();
   
-  auto first_if_block = Block();
-  first_if_block.statements.push_back(std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")));
-  auto first_b = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("1") };
-  block_fib.statements.push_back(std::make_shared<IfStatement>(first_b, first_if_block));
+  auto first_if_block = Block({ std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")) });
+  auto first_if_condition = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("1") };
   
-  auto second_if_block = Block();
-  second_if_block.statements.push_back(std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")));
-  auto second_b = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("2") };
-  block_fib.statements.push_back(std::make_shared<IfStatement>(second_b, second_if_block));
+  auto second_if_block = Block({ std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")) });
+  auto second_if_condition = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("2") };
   
   std::vector<std::shared_ptr<Expression>> fib_arguments_left {
     std::make_shared<BinaryExpression>(std::make_shared<Identifier>("n"), Token::Minus, std::make_shared<NumericLiteral>("1"))
   };
-  auto bb_left = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_left);
+  auto binary_left = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_left);
   
   std::vector<std::shared_ptr<Expression>> fib_arguments_right {
     std::make_shared<BinaryExpression>(std::make_shared<Identifier>("n"), Token::Minus, std::make_shared<NumericLiteral>("2"))
   };
-  auto bb_right = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_right);
+  auto binary_right = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_right);
   
-  auto bb = std::make_shared<BinaryExpression>(bb_left, Token::Plus, bb_right);
-  block_fib.statements.push_back(std::make_shared<ReturnStatement>(bb));
+  auto sum = std::make_shared<BinaryExpression>(binary_left, Token::Plus, binary_right);
   
-  auto function_declaration_fib =
-  FunctionDeclaration{identifier_fib, block_fib, {parameter_n}};
+  auto function_declaration_fib = FunctionDeclaration {
+    identifier_fib,
+    Block({
+      std::make_shared<IfStatement>(first_if_condition, first_if_block),
+      std::make_shared<IfStatement>(second_if_condition, second_if_block),
+      std::make_shared<ReturnStatement>(sum),
+    }),
+    {parameter_n}
+  };
   
   // main
   auto identifier_main = Identifier{"main"};
-  auto block_main = Block();
   std::vector<std::shared_ptr<Expression>> args = {std::make_shared<NumericLiteral>("25")};
   auto ce = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), args);
-  block_main.statements.push_back(std::make_shared<ReturnStatement>(ce));
-  auto function_declaration_main =
-  FunctionDeclaration{identifier_main, block_main, {}};
+  auto function_declaration_main = FunctionDeclaration {
+    identifier_main,
+    Block({ std::make_shared<ReturnStatement>(ce) }),
+    {}
+  };
   
   auto source_file = SourceFile{};
-  source_file.statements.push_back(
-                                   std::make_shared<FunctionDeclaration>(function_declaration_fib));
-  source_file.statements.push_back(
-                                   std::make_shared<FunctionDeclaration>(function_declaration_main));
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_fib));
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
   
   chain.load(source_file);
   
