@@ -19,5 +19,5 @@ Very naive attempt to do a JS engine in C++17. Doing this for learning purposes.
 ## Compile and run
 
 ```
-g++ -std=c++17 -I./notjs notjs/main.cpp && ./a.out
+g++ -std=c++17 -O3 -Wall -I ./notjs ./notjs/main.cpp && time ./a.out
 ```
