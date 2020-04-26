@@ -1,5 +1,22 @@
 #include "main.h"
 
+const bool kDebug = false;
+
+template <typename First, typename... Rest>
+void log(First first, Rest... rest)
+{
+  if (!kDebug) {
+    return;
+  }
+  
+  std::string sep = " ";
+  std::string end = "\n";
+  
+  std::cout << first;
+  ((std::cout << sep << rest), ...);
+  std::cout << end;
+}
+
 class JSNumber : public JSValue {
 public:
   const double value;
@@ -138,20 +155,19 @@ public:
 class Parameter {
 public:
   const Identifier name;
-  
   Parameter(const Identifier name) : name(name){};
 };
 
 class FunctionDeclaration : public Statement {
 public:
-  StatementKind kind;
-  const Identifier &name;
-  Block &body;
-  std::vector<Parameter> parameters;
+  const StatementKind kind;
+  const Identifier name;
+  const Block body;
+  const std::vector<Parameter> parameters;
   
-  FunctionDeclaration(const Identifier &name, Block &body,
-                      std::vector<Parameter> parameters)
-  : name(name), body(body), parameters(parameters){};
+  FunctionDeclaration(const Identifier name, const Block &body,
+                      const std::vector<Parameter> parameters)
+  : kind(StatementKind::FunctionDeclaration), name(name), body(body), parameters(parameters){};
   
   void visit() const override {
     printf("Visit FunctionDeclaration\n");
@@ -166,7 +182,8 @@ public:
   }
   
   std::shared_ptr<JSValue> execute(Chain &chain) const {
-    for (auto &statement : body.statements) {
+    log("FunctionDeclaration::execute", name.text);
+    for (const auto &statement : body.statements) {
       auto value = statement->evaluate(chain);
       if (value) {
         return value;
@@ -195,6 +212,8 @@ Identifier::call(Chain &chain,
       auto s = function->parameters.at(i).name.text;
       function_scope.values.insert({s, value});
     }
+    
+    log("Identifier::call", text, function_scope.serialize());
     
     chain.scopes.push_back(function_scope);
     auto function_return_value = function->execute(chain);
@@ -257,35 +276,36 @@ public:
 
 class BinaryExpression : public Expression {
 public:
-  const Expression &left;
-  const Expression &right;
+  const std::shared_ptr<Expression> left;
+  const std::shared_ptr<Expression> right;
   const Token operatorToken;
   
-  BinaryExpression(const Expression &left, const Token operatorToken,
-                   const Expression &right)
+  BinaryExpression(const std::shared_ptr<Expression> left, const Token operatorToken,
+                   const std::shared_ptr<Expression> right)
   : left(left), operatorToken(operatorToken), right(right){};
   
   void visit() const override {
     printf("Visit BinaryExpression\n");
-    left.visit();
-    right.visit();
+    left->visit();
+    right->visit();
   }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
+    log("BinaryExpression::evaluate");
     switch (operatorToken) {
       case Token::Plus: {
-        auto left_value = left.evaluate(chain);
-        auto right_value = right.evaluate(chain);
+        auto left_value = left->evaluate(chain);
+        auto right_value = right->evaluate(chain);
         return left_value->plus_operator(std::move(right_value));
       }
       case Token::Minus: {
-        auto left_value = left.evaluate(chain);
-        auto right_value = right.evaluate(chain);
+        auto left_value = left->evaluate(chain);
+        auto right_value = right->evaluate(chain);
         return left_value->minus_operator(std::move(right_value));
       }
       case Token::EqualsEqualsEquals: {
-        auto left_value = left.evaluate(chain);
-        auto right_value = right.evaluate(chain);
+        auto left_value = left->evaluate(chain);
+        auto right_value = right->evaluate(chain);
         return left_value->equalsequalsequals_operator(std::move(right_value));
       }
     }
@@ -300,24 +320,24 @@ public:
 
 class ConditionalExpression : public Expression {
 public:
-  const Expression &condition;
-  const Expression &whenTrue;
-  const Expression &whenFalse;
-  Token operatorToken;
+  const std::shared_ptr<Expression> condition;
+  const std::shared_ptr<Expression> whenTrue;
+  const std::shared_ptr<Expression> whenFalse;
   
-  ConditionalExpression(const Expression &condition, const Expression &whenTrue,
-                        const Expression &whenFalse)
+  ConditionalExpression(const std::shared_ptr<Expression> condition, const std::shared_ptr<Expression> whenTrue,
+                        const std::shared_ptr<Expression> whenFalse)
   : condition(condition), whenTrue(whenTrue), whenFalse(whenFalse){};
   
   void visit() const override { printf("Visit ConditionalExpression\n"); }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
-    bool result = condition.evaluate(chain)->as_boolean()->value;
+    log("ConditionalExpression::evaluate");
+    bool result = condition->evaluate(chain)->as_boolean()->value;
     
     if (result) {
-      return whenTrue.evaluate(chain);
+      return whenTrue->evaluate(chain);
     } else {
-      return whenFalse.evaluate(chain);
+      return whenFalse->evaluate(chain);
     }
   }
   
@@ -330,24 +350,27 @@ public:
 
 class CallExpression : public Expression {
 public:
-  const Expression &expression;
-  std::vector<std::shared_ptr<Expression>> arguments;
+  const std::shared_ptr<Expression> expression;
+  const std::vector<std::shared_ptr<Expression>> arguments;
   
-  CallExpression(const Expression &expression,
-                 std::vector<std::shared_ptr<Expression>> arguments)
+  CallExpression(const std::shared_ptr<Expression> expression,
+                 const std::vector<std::shared_ptr<Expression>> arguments)
   : expression(expression), arguments(arguments){};
   
   void visit() const override { printf("Visit CallExpression\n"); }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
+    
     std::vector<std::shared_ptr<JSValue>> values{};
     
-    for (auto argument : arguments) {
+    for (const auto& argument : arguments) {
       auto value = argument->evaluate(chain);
       values.push_back(value);
     }
     
-    return expression.call(chain, values);
+    log("CallExpression::evaluate", values.size());
+    
+    return expression->call(chain, values);
   }
   
   std::shared_ptr<JSValue>
@@ -360,10 +383,10 @@ public:
 class IfStatement : public Statement {
 public:
   const StatementKind kind;
-  const Block &thenStatement;
-  const BinaryExpression &expression;
+  const Block thenStatement;
+  const BinaryExpression expression;
   
-  IfStatement(const BinaryExpression &expression, const Block &thenStatement)
+  IfStatement(const BinaryExpression expression, const Block thenStatement)
   : kind(StatementKind::If), thenStatement(thenStatement),
   expression(expression){};
   
@@ -390,18 +413,19 @@ public:
 class ReturnStatement : public Statement {
 public:
   const StatementKind kind;
-  const Expression &expression;
+  const std::shared_ptr<Expression> expression;
   
-  ReturnStatement(const Expression &expression)
+  ReturnStatement(const std::shared_ptr<Expression> expression)
   : kind(StatementKind::Return), expression(expression){};
   
   void visit() const override {
     printf("Visit ReturnStatement\n");
-    expression.visit();
+    expression->visit();
   }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
-    return expression.evaluate(chain);
+    log("ReturnStatement::evaluate");
+    return expression->evaluate(chain);
   }
   
   StatementKind getKind() const override { return kind; }
@@ -419,7 +443,8 @@ public:
   }
   
   void evaluate(Chain &chain) const {
-    for (auto &statement : statements) {
+    log("SourceFile::evaluate");
+    for (const auto &statement : statements) {
       statement->evaluate(chain);
     }
   }
@@ -472,30 +497,26 @@ int main(int argc, const char *argv[]) {
   auto block_fib = Block();
   
   auto first_if_block = Block();
-  first_if_block.statements.push_back(
-                                      std::make_shared<ReturnStatement>(NumericLiteral("1")));
-  block_fib.statements.push_back(std::make_shared<IfStatement>(
-                                                               BinaryExpression{Identifier{"n"}, Token::EqualsEqualsEquals,
-    NumericLiteral{"1"}},
-                                                               first_if_block));
+  first_if_block.statements.push_back(std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")));
+  auto first_b = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("1") };
+  block_fib.statements.push_back(std::make_shared<IfStatement>(first_b, first_if_block));
   
   auto second_if_block = Block();
-  second_if_block.statements.push_back(
-                                       std::make_shared<ReturnStatement>(NumericLiteral("1")));
-  block_fib.statements.push_back(std::make_shared<IfStatement>(
-                                                               BinaryExpression{Identifier{"n"}, Token::EqualsEqualsEquals,
-    NumericLiteral{"2"}},
-                                                               second_if_block));
+  second_if_block.statements.push_back(std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("1")));
+  auto second_b = BinaryExpression { std::make_shared<Identifier>("n"), Token::EqualsEqualsEquals, std::make_shared<NumericLiteral>("2") };
+  block_fib.statements.push_back(std::make_shared<IfStatement>(second_b, second_if_block));
   
-  auto bb_left =
-  CallExpression{Identifier("fib"),
-    {std::make_shared<BinaryExpression>(
-                                        Identifier{"n"}, Token::Minus, NumericLiteral("1"))}};
-  auto bb_right =
-  CallExpression{Identifier("fib"),
-    {std::make_shared<BinaryExpression>(
-                                        Identifier{"n"}, Token::Minus, NumericLiteral("2"))}};
-  auto bb = BinaryExpression{bb_left, Token::Plus, bb_right};
+  std::vector<std::shared_ptr<Expression>> fib_arguments_left {
+    std::make_shared<BinaryExpression>(std::make_shared<Identifier>("n"), Token::Minus, std::make_shared<NumericLiteral>("1"))
+  };
+  auto bb_left = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_left);
+  
+  std::vector<std::shared_ptr<Expression>> fib_arguments_right {
+    std::make_shared<BinaryExpression>(std::make_shared<Identifier>("n"), Token::Minus, std::make_shared<NumericLiteral>("2"))
+  };
+  auto bb_right = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), fib_arguments_right);
+  
+  auto bb = std::make_shared<BinaryExpression>(bb_left, Token::Plus, bb_right);
   block_fib.statements.push_back(std::make_shared<ReturnStatement>(bb));
   
   auto function_declaration_fib =
@@ -504,8 +525,8 @@ int main(int argc, const char *argv[]) {
   // main
   auto identifier_main = Identifier{"main"};
   auto block_main = Block();
-  auto ce = CallExpression{Identifier("fib"),
-    {std::make_shared<NumericLiteral>("25")}};
+  std::vector<std::shared_ptr<Expression>> args = {std::make_shared<NumericLiteral>("25")};
+  auto ce = std::make_shared<CallExpression>(std::make_shared<Identifier>("fib"), args);
   block_main.statements.push_back(std::make_shared<ReturnStatement>(ce));
   auto function_declaration_main =
   FunctionDeclaration{identifier_main, block_main, {}};
@@ -520,7 +541,7 @@ int main(int argc, const char *argv[]) {
   
   auto main_function = chain.lookup_function("main");
   if (!main_function) {
-    std::cout << "No main function!" << std::endl;
+    log("No main function!");
     return 1;
   }
   
