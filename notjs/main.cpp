@@ -283,7 +283,7 @@ public:
   
   BinaryExpression(const std::shared_ptr<Expression> left, const Token operatorToken,
                    const std::shared_ptr<Expression> right)
-  : left(left), operatorToken(operatorToken), right(right){};
+  : left(left), right(right), operatorToken(operatorToken) {};
   
   void visit() const override {
     printf("Visit BinaryExpression\n");
