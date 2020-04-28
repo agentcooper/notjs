@@ -487,11 +487,8 @@ Chain::lookup_function(const std::string name) const {
   return nullptr;
 }
 
-int main(int argc, const char *argv[]) {
-  auto globalScope = Scope{};
-  auto chain = Chain{};
-  chain.scopes.push_back(globalScope);
-  
+// see fib.js
+SourceFile createFibonacciProgram() {
   // fib
   auto identifier_fib = Identifier{"fib"};
   auto parameter_n = Parameter{Identifier{"n"}};
@@ -538,7 +535,16 @@ int main(int argc, const char *argv[]) {
   source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_fib));
   source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
   
-  chain.load(source_file);
+  return source_file;
+}
+
+int main(int argc, const char *argv[]) {
+  auto globalScope = Scope{};
+  auto chain = Chain{};
+  chain.scopes.push_back(globalScope);
+  
+  auto fibonacci_source_file = createFibonacciProgram();
+  chain.load(fibonacci_source_file);
   
   auto main_function = chain.lookup_function("main");
   if (!main_function) {
