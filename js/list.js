@@ -1,6 +1,6 @@
 function pair(a, b) {
-  function inner(c) {
-    return c(a, b);
+  function inner(getter) {
+    return getter(a, b);
   }
   return inner;
 }
@@ -12,21 +12,21 @@ function first(pair) {
   return pair(getFirst);
 }
 
-function second(p) {
+function second(pair) {
   function getSecond(a, b) {
     return b;
   }
-  return p(getSecond);
+  return pair(getSecond);
 }
 
 function print(list) {
-  if (list === null) {
+  if (list === undefined) {
     return;
   }
   console.log(first(list));
   print(second(list));
 }
 
-const list = pair(1, pair(2, pair(3, pair(4, null))));
+const list = pair(1, pair(2, pair(3, pair(4, undefined))));
 
 print(list);
