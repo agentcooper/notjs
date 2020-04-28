@@ -8,8 +8,10 @@ Very naive attempt to do a JS engine in C++17. Doing this for learning purposes.
 2. [x] Recursion
 3. [x] Booleans, comparision operators
 4. [x] Ternary expression
-5. [ ] Parser
-6. [ ] Explore JIT and inline caching techniques
+5. [x] Let
+6. [ ] Closures 
+7. [ ] Parser
+8. [ ] Explore JIT and inline caching techniques
 
 ## Notes
 
