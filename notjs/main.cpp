@@ -432,8 +432,43 @@ public:
   StatementKind getKind() const override { return kind; }
 };
 
+struct VariableDeclaration {
+  const Identifier name;
+  const std::shared_ptr<Expression> initializer;
+};
+
+struct VariableDeclarationList {
+  const std::vector<VariableDeclaration> declarations;
+};
+
+class VariableStatement : public Statement {
+public:
+  const StatementKind kind_;
+  const VariableDeclarationList declarationList_;
+  
+  VariableStatement(const VariableDeclarationList declarationList)
+  : kind_(StatementKind::VariableStatement), declarationList_(declarationList) {};
+  
+  void visit() const override {
+    printf("Visit VariableStatement\n");
+  }
+  
+  std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
+    log("ReturnStatement::evaluate");
+    
+    for (const auto& declaration: declarationList_.declarations) {
+      chain.set_value(declaration.name.text, declaration.initializer->evaluate(chain));
+    }
+    
+    return nullptr;
+  }
+  
+  StatementKind getKind() const override { return kind_; }
+};
+
 class SourceFile {
 public:
+  const std::string fileName;
   std::vector<std::shared_ptr<Statement>> statements;
   
   void visit() const {
@@ -476,6 +511,10 @@ std::shared_ptr<JSValue> Chain::lookup_value(const std::string name) const {
   return std::make_shared<JSUndefined>();
 }
 
+void Chain::set_value(const std::string name, std::shared_ptr<JSValue> value) {
+  scopes.back().values.insert({ name, value });
+}
+
 std::shared_ptr<FunctionDeclaration>
 Chain::lookup_function(const std::string name) const {
   for (auto scope : scopes) {
@@ -487,7 +526,7 @@ Chain::lookup_function(const std::string name) const {
   return nullptr;
 }
 
-// see fib.js
+// see js/fib.js
 SourceFile createFibonacciProgram() {
   // fib
   auto identifier_fib = Identifier{"fib"};
@@ -531,28 +570,77 @@ SourceFile createFibonacciProgram() {
     {}
   };
   
-  auto source_file = SourceFile{};
+  auto source_file = SourceFile{ "./js/fib.js" };
   source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_fib));
   source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
   
   return source_file;
 }
 
-int main(int argc, const char *argv[]) {
+// see js/let.js
+SourceFile createLetProgram() {
+  auto source_file = SourceFile{ "./js/let.js" };
+  
+  auto identifier_main = Identifier { "main" };
+  
+  auto let_a = std::make_shared<VariableStatement>(VariableDeclarationList {{
+    VariableDeclaration { Identifier { "a" }, std::make_shared<NumericLiteral>("1") }
+  }});
+  source_file.statements.push_back(let_a);
+  
+  auto let_b = std::make_shared<VariableStatement>(VariableDeclarationList {{
+    VariableDeclaration { Identifier { "b" }, std::make_shared<NumericLiteral>("2") }
+  }});
+  source_file.statements.push_back(let_b);
+
+  auto function_declaration_main = FunctionDeclaration {
+    identifier_main,
+    Block({ std::make_shared<ReturnStatement>(std::make_shared<BinaryExpression>(std::make_shared<Identifier>("a"), Token::Plus, std::make_shared<Identifier>("b"))) }),
+    {}
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
+  
+  return source_file;
+}
+
+std::shared_ptr<JSValue> createScopeAndEvaluate(SourceFile source_file) {
   auto globalScope = Scope{};
   auto chain = Chain{};
   chain.scopes.push_back(globalScope);
   
-  auto fibonacci_source_file = createFibonacciProgram();
-  chain.load(fibonacci_source_file);
+  chain.load(source_file);
   
   auto main_function = chain.lookup_function("main");
   if (!main_function) {
     log("No main function!");
-    return 1;
+    return nullptr;
   }
   
-  std::cout << main_function->execute(chain)->serialize() << std::endl;
+  return main_function->execute(chain);
+}
+
+int main(int argc, const char *argv[]) {
+  {
+    auto source_file = createFibonacciProgram();
+    auto value = createScopeAndEvaluate(source_file);
+    if (!value) {
+      return 1;
+    }
+    auto serialized_value = value->serialize();
+    std::cout << source_file.fileName << ": " << serialized_value << std::endl;
+    assert(serialized_value == "75025.000000");
+  }
   
+  {
+    auto source_file = createLetProgram();
+    auto value = createScopeAndEvaluate(source_file);
+    if (!value) {
+      return 1;
+    }
+    auto serialized_value = value->serialize();
+    std::cout << source_file.fileName << ": " << serialized_value << std::endl;
+    assert(serialized_value == "3.000000");
+  }
+
   return 0;
 }

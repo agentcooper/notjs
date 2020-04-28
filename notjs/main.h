@@ -14,6 +14,7 @@
 #include <vector>
 #include <map>
 #include <math.h>
+#include <cassert>
 
 enum class Token {
     Plus,
@@ -22,6 +23,7 @@ enum class Token {
 };
 
 enum class StatementKind {
+    VariableStatement,
     FunctionDeclaration,
     Return,
     If,
@@ -67,6 +69,7 @@ public:
     std::shared_ptr<JSValue> lookup_value(const std::string name) const;
     std::shared_ptr<FunctionDeclaration> lookup_function(const std::string name) const;
     void load(const SourceFile& sourceFile);
+    void set_value(const std::string name, std::shared_ptr<JSValue> value);
 };
 
 class Expression: public Node {
