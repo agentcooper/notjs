@@ -50,7 +50,7 @@ public:
   }
   
   std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSNumber>(0);
+    throw std::runtime_error(this->serialize() + " is not a function");
   }
 };
 
@@ -86,7 +86,7 @@ public:
   }
   
   std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue> > values) const override {
-    return std::make_shared<JSBoolean>(false);
+    throw std::runtime_error(this->serialize() + " is not a function");
   }
 };
 
@@ -119,8 +119,8 @@ public:
     return std::make_shared<JSBoolean>(false);
   }
   
-  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue> > values) const override {
-    return std::make_shared<JSBoolean>(false);
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
+    throw std::runtime_error(this->serialize() + " is not a function");
   }
 };
 
@@ -152,7 +152,7 @@ public:
   }
   
   std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
+    throw std::runtime_error("TypeError: undefined not a function.");
   }
 };
 

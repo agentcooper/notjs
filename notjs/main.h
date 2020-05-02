@@ -15,6 +15,7 @@
 #include <map>
 #include <math.h>
 #include <cassert>
+#include <stdexcept>
 
 enum class Token {
   Plus,
