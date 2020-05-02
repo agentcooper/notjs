@@ -140,6 +140,11 @@ public:
   
   std::shared_ptr<JSBoolean>
   equalsequalsequals_operator(std::shared_ptr<JSValue> right) const override {
+    // @TO-DO: find a better way :-)
+    if (right->serialize() == "undefined") {
+      return std::make_shared<JSBoolean>(true);
+    }
+    
     return std::make_shared<JSBoolean>(false);
   };
   
@@ -234,11 +239,28 @@ std::shared_ptr<JSValue> FunctionDeclaration::execute(Chain &chain) const {
 }
 StatementKind FunctionDeclaration::getKind() const { return kind; }
 
+std::string FunctionDeclaration::serialize() const {
+  std::string result = "function " + name.text + "(";
+  
+  for (const auto& parameter: parameters) {
+    result += parameter.name.text + ", ";
+  }
+  result += ") {\n";
+  
+  result += body.serialize("  ");
+  
+  return result + "}";
+}
+
 void Identifier::visit() const { printf("Visit Identifier\n"); }
 std::shared_ptr<JSValue> Identifier::evaluate(Chain &chain) const {
   auto value = chain.lookup_value(text);
   log("Identifier::evaluate", text, "=", value->serialize());
   return value;
+}
+
+std::string Identifier::serialize() const {
+  return text;
 }
 
 class TrueKeyword : public Expression {
@@ -248,6 +270,10 @@ public:
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSBoolean>(true);
   }
+  
+  std::string serialize() const override {
+    return "true";
+  }
 };
 
 class FalseKeyword : public Expression {
@@ -256,6 +282,10 @@ public:
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSBoolean>(false);
+  }
+  
+  std::string serialize() const override {
+    return "false";
   }
 };
 
@@ -269,6 +299,10 @@ public:
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSNumber>(std::stod(text));
+  }
+  
+  std::string serialize() const override {
+    return text;
   }
 };
 
@@ -308,6 +342,18 @@ public:
       }
     }
   }
+  
+  std::string serialize() const override {
+    std::string result = left->serialize();
+    
+    switch (operatorToken) {
+      case Token::Plus: result += " + "; break;
+      case Token::Minus: result += " - "; break;
+      case Token::EqualsEqualsEquals: result += " === "; break;
+    }
+    
+    return result + right->serialize();
+  }
 };
 
 class ConditionalExpression : public Expression {
@@ -331,6 +377,10 @@ public:
     } else {
       return whenFalse->evaluate(chain);
     }
+  }
+  
+  std::string serialize() const override {
+    return "ConditionalExpression";
   }
 };
 
@@ -361,6 +411,16 @@ public:
     
     return value->call(chain, values);
   }
+  
+  std::string serialize() const override {
+    std::string result = expression->serialize() + "(";
+    
+    for (const auto& argument : arguments) {
+      result += argument->serialize() + ", ";
+    }
+    
+    return result + ")";
+  }
 };
 
 class IfStatement : public Statement {
@@ -386,6 +446,20 @@ public:
   }
   
   StatementKind getKind() const override { return kind; }
+  
+  std::string serialize() const override {
+    return "if (" + expression.serialize() + ") {\n" + thenStatement.serialize("  ") + "}";
+  }
+};
+
+std::string Block::serialize(const std::string offset) const {
+  std::string result = "";
+  
+  for (const auto& statement: statements) {
+    result += offset + statement->serialize() + ";\n";
+  }
+  
+  return result;
 };
 
 class ReturnStatement : public Statement {
@@ -402,6 +476,10 @@ public:
   }
   
   StatementKind getKind() const override { return kind; }
+  
+  std::string serialize() const override {
+    return "return " + expression->serialize();
+  }
 };
 
 struct VariableDeclaration {
@@ -432,6 +510,10 @@ public:
   }
   
   StatementKind getKind() const override { return kind_; }
+  
+  std::string serialize() const override {
+    return "VariableStatement";
+  }
 };
 
 class SourceFile {
@@ -444,6 +526,16 @@ public:
     for (const auto &statement : statements) {
       statement->evaluate(chain);
     }
+  }
+  
+  std::string serialize() {
+    std::string result = "";
+    
+    for (const auto &statement : statements) {
+      result += statement->serialize() + "\n";
+    }
+    
+    return result;
   }
 };
 
@@ -630,6 +722,156 @@ SourceFile createClosureProgram() {
   return source_file;
 }
 
+// see js/list.js
+SourceFile createListProgram() {
+  auto source_file = SourceFile{ "./js/list.js" };
+  
+  // inner
+  std::vector<std::shared_ptr<Expression>> args_getter = {
+    std::make_shared<Identifier>("a"),
+    std::make_shared<Identifier>("b")
+  };
+  auto function_declaration_inner = FunctionDeclaration {
+    Identifier { "inner" },
+    Block({
+      std::make_shared<ReturnStatement>(std::make_shared<CallExpression>(std::make_shared<Identifier>("getter"), args_getter))
+    }),
+    {
+      Parameter{ Identifier{ "getter" } }
+    }
+  };
+  // pair
+  auto function_declaration_pair = FunctionDeclaration {
+    Identifier { "pair" },
+    Block({
+      std::make_shared<FunctionDeclaration>(function_declaration_inner),
+      std::make_shared<ReturnStatement>(std::make_shared<Identifier>("inner"))
+    }),
+    {
+      Parameter{ Identifier{ "a" } },
+      Parameter{ Identifier{ "b" } }
+    }
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_pair));
+  
+  // getFirst
+  auto function_declaration_getFirst = FunctionDeclaration {
+    Identifier { "getFirst" },
+    Block({
+      std::make_shared<ReturnStatement>(std::make_shared<Identifier>("a"))
+    }),
+    {
+      Parameter{ Identifier{ "a" } },
+      Parameter{ Identifier{ "b" } }
+    }
+  };
+  // first
+  std::vector<std::shared_ptr<Expression>> args_pair = {
+    std::make_shared<Identifier>("getFirst")
+  };
+  auto function_declaration_first = FunctionDeclaration {
+    Identifier { "first" },
+    Block({
+      std::make_shared<FunctionDeclaration>(function_declaration_getFirst),
+      std::make_shared<ReturnStatement>(std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), args_pair))
+    }),
+    {
+      Parameter{ Identifier{ "pair" } }
+    }
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_first));
+  
+  // getSecond
+  auto function_declaration_getSecond = FunctionDeclaration {
+    Identifier { "getSecond" },
+    Block({
+      std::make_shared<ReturnStatement>(std::make_shared<Identifier>("b"))
+    }),
+    {
+      Parameter{ Identifier{ "a" } },
+      Parameter{ Identifier{ "b" } }
+    }
+  };
+  // second
+  std::vector<std::shared_ptr<Expression>> args_pair_2 = {
+    std::make_shared<Identifier>("getSecond")
+  };
+  auto function_declaration_second = FunctionDeclaration {
+    Identifier { "second" },
+    Block({
+      std::make_shared<FunctionDeclaration>(function_declaration_getSecond),
+      std::make_shared<ReturnStatement>(std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), args_pair_2))
+    }),
+    {
+      Parameter{ Identifier{ "pair" } }
+    }
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_second));
+  
+  // sum
+  auto first_if_condition = BinaryExpression { std::make_shared<Identifier>("list"), Token::EqualsEqualsEquals, std::make_shared<Identifier>("undefined") };
+  auto first_if_block = Block({ std::make_shared<ReturnStatement>(std::make_shared<NumericLiteral>("0")) });
+  
+  std::vector<std::shared_ptr<Expression>> left_args = {
+    std::make_shared<Identifier>("list")
+  };
+  auto left = std::make_shared<CallExpression>(std::make_shared<Identifier>("first"), left_args);
+  
+  
+  std::vector<std::shared_ptr<Expression>> right_inner_args = {
+    std::make_shared<Identifier>("list")
+  };
+  auto right_inner = std::make_shared<CallExpression>(std::make_shared<Identifier>("second"), left_args);
+  std::vector<std::shared_ptr<Expression>> right_args = {
+    right_inner
+  };
+  auto right = std::make_shared<CallExpression>(std::make_shared<Identifier>("sum"), right_args);
+  
+  auto function_declaration_sum = FunctionDeclaration {
+    Identifier { "sum" },
+    Block({
+      std::make_shared<IfStatement>(first_if_condition, first_if_block),
+      std::make_shared<ReturnStatement>(std::make_shared<BinaryExpression>(left, Token::Plus, right))
+    }),
+    {
+      Parameter{ Identifier{ "list" } }
+    }
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_sum));
+  
+  // main
+  std::vector<std::shared_ptr<Expression>> pair_4_args = {
+    std::make_shared<NumericLiteral>("4"),
+  };
+  
+  std::vector<std::shared_ptr<Expression>> pair_3_args = {
+    std::make_shared<NumericLiteral>("3"),
+    std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), pair_4_args)
+  };
+  
+  std::vector<std::shared_ptr<Expression>> pair_2_args = {
+    std::make_shared<NumericLiteral>("2"),
+    std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), pair_3_args)
+  };
+  
+  std::vector<std::shared_ptr<Expression>> pair_1_args = {
+    std::make_shared<NumericLiteral>("1"),
+    std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), pair_2_args)
+  };
+  std::vector<std::shared_ptr<Expression>> pair_1 = {std::make_shared<CallExpression>(std::make_shared<Identifier>("pair"), pair_1_args)};
+  
+  auto call_expression_first = std::make_shared<CallExpression>(std::make_shared<Identifier>("sum"), pair_1);
+  
+  auto function_declaration_main = FunctionDeclaration {
+    Identifier { "main" },
+    Block({ std::make_shared<ReturnStatement>(call_expression_first) }),
+    {}
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
+  
+  return source_file;
+}
+
 std::shared_ptr<JSValue> createScopeAndEvaluate(SourceFile source_file) {
   auto globalScope = Scope {};
   auto chain = Chain {};
@@ -679,6 +921,17 @@ int main(int argc, const char *argv[]) {
     auto serialized_value = value->serialize();
     std::cout << source_file.fileName << ": " << serialized_value << std::endl;
     assert(serialized_value == "42.000000");
+  }
+  
+  {
+    auto source_file = createListProgram();
+    auto value = createScopeAndEvaluate(source_file);
+    if (!value) {
+      return 1;
+    }
+    auto serialized_value = value->serialize();
+    std::cout << source_file.fileName << ": " << serialized_value << std::endl;
+    assert(serialized_value == "10.000000");
   }
   
   return 0;

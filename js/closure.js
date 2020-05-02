@@ -9,3 +9,5 @@ function sum(a) {
 function main() {
   return sum(40)(2);
 }
+
+console.log(main());

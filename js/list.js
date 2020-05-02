@@ -19,14 +19,15 @@ function second(pair) {
   return pair(getSecond);
 }
 
-function print(list) {
+function sum(list) {
   if (list === undefined) {
-    return;
+    return 0;
   }
-  console.log(first(list));
-  print(second(list));
+  return first(list) + sum(second(list));
 }
 
-const list = pair(1, pair(2, pair(3, pair(4, undefined))));
+function main() {
+  return sum(pair(1, pair(2, pair(3, pair(4)))));
+}
 
-print(list);
+console.log(main());

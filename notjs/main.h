@@ -85,6 +85,7 @@ public:
 class Expression: public Node {
 public:
   virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
+  virtual std::string serialize() const = 0;
   virtual ~Expression() {};
 };
 
@@ -94,6 +95,7 @@ public:
   Identifier(const std::string text): text(text) {};
   void visit() const override;
   std::shared_ptr<JSValue> evaluate(Chain& chain) const override;
+  std::string serialize() const override;
 };
 
 class Statement;
@@ -102,12 +104,14 @@ class Block {
 public:
   std::vector<std::shared_ptr<Statement>> statements;
   Block(std::vector<std::shared_ptr<Statement>> statements): statements(statements) {};
+  std::string serialize(const std::string offset) const;
 };
 
 class Statement {
 public:
   virtual std::shared_ptr<JSValue> evaluate(Chain& chain) const = 0;
   virtual StatementKind getKind() const = 0;
+  virtual std::string serialize() const = 0;
   virtual ~Statement() {};
 };
 
@@ -132,6 +136,8 @@ public:
   StatementKind getKind() const override;
   
   std::shared_ptr<JSValue> execute(Chain &chain) const;
+  
+  std::string serialize() const override;
 };
 
 #endif /* main_h */
