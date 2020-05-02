@@ -48,6 +48,10 @@ public:
   std::shared_ptr<JSBoolean> as_boolean() const override {
     return std::make_shared<JSBoolean>(true);
   }
+  
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
+    return std::make_shared<JSNumber>(0);
+  }
 };
 
 class JSBoolean : public JSValue {
@@ -80,6 +84,10 @@ public:
   std::shared_ptr<JSBoolean> as_boolean() const override {
     return std::make_shared<JSBoolean>(*this);
   }
+  
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue> > values) const override {
+    return std::make_shared<JSBoolean>(false);
+  }
 };
 
 class JSString : public JSValue {
@@ -110,6 +118,10 @@ public:
   std::shared_ptr<JSBoolean> as_boolean() const override {
     return std::make_shared<JSBoolean>(false);
   }
+  
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue> > values) const override {
+    return std::make_shared<JSBoolean>(false);
+  }
 };
 
 class JSUndefined : public JSValue {
@@ -138,92 +150,95 @@ public:
   std::shared_ptr<JSBoolean> as_boolean() const override {
     return std::make_shared<JSBoolean>(false);
   }
-};
-
-class Block : public Node {
-public:
-  std::vector<std::shared_ptr<Statement>> statements;
-  Block(std::vector<std::shared_ptr<Statement>> statements): statements(statements) {};
   
-  void visit() const override {
-    printf("Visit Block\n");
-    for (auto &statement : statements) {
-      statement->visit();
-    }
-  }
-};
-
-class Parameter {
-public:
-  const Identifier name;
-  Parameter(const Identifier name) : name(name){};
-};
-
-class FunctionDeclaration : public Statement {
-public:
-  const StatementKind kind;
-  const Identifier name;
-  const Block body;
-  const std::vector<Parameter> parameters;
-  
-  FunctionDeclaration(const Identifier name, const Block &body,
-                      const std::vector<Parameter> parameters)
-  : kind(StatementKind::FunctionDeclaration), name(name), body(body), parameters(parameters){};
-  
-  void visit() const override {
-    printf("Visit FunctionDeclaration\n");
-    name.visit();
-    body.visit();
-  }
-  
-  std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
-    chain.scopes.back().functions.insert(
-                                         {name.text, std::make_shared<FunctionDeclaration>(*this)});
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
     return std::make_shared<JSUndefined>();
   }
-  
-  std::shared_ptr<JSValue> execute(Chain &chain) const {
-    log("FunctionDeclaration::execute", name.text);
-    for (const auto &statement : body.statements) {
-      auto value = statement->evaluate(chain);
-      if (value) {
-        return value;
-      }
-    }
-    return nullptr;
-  }
-  
-  StatementKind getKind() const override { return kind; }
 };
 
-void Identifier::visit() const { printf("Visit Identifier\n"); }
-std::shared_ptr<JSValue> Identifier::evaluate(Chain &chain) const {
-  return chain.lookup_value(text);
-}
-std::shared_ptr<JSValue>
-Identifier::call(Chain &chain,
-                 std::vector<std::shared_ptr<JSValue>> values) const {
-  auto function = chain.lookup_function(text);
+class JSFunction : public JSValue {
+public:
+  const FunctionDeclaration declaration;
+  Chain local_chain_;
   
-  if (function) {
+  JSFunction(const FunctionDeclaration declaration, Chain& local_chain) :
+  declaration(declaration), local_chain_(local_chain) {};
+  
+  std::string serialize() const override { return "Function {}"; };
+  
+  std::shared_ptr<JSValue>
+  plus_operator(std::shared_ptr<JSValue> right) const override {
+    return std::make_shared<JSUndefined>();
+  };
+  
+  std::shared_ptr<JSValue>
+  minus_operator(std::shared_ptr<JSValue> right) const override {
+    return std::make_shared<JSUndefined>();
+  };
+  
+  std::shared_ptr<JSBoolean>
+  equalsequalsequals_operator(std::shared_ptr<JSValue> right) const override {
+    return std::make_shared<JSBoolean>(false);
+  };
+  
+  std::shared_ptr<JSNumber> as_number() const override {
+    return std::make_shared<JSNumber>(0);
+  }
+  
+  std::shared_ptr<JSBoolean> as_boolean() const override {
+    return std::make_shared<JSBoolean>(true);
+  }
+  
+  std::shared_ptr<JSValue> call(Chain &chain, std::vector<std::shared_ptr<JSValue>> values) const override {
     auto function_scope = Scope{};
     
     for (std::size_t i = 0; i != values.size(); ++i) {
       auto value = values[i];
-      auto s = function->parameters.at(i).name.text;
+      auto s = declaration.parameters.at(i).name.text;
       function_scope.values.insert({s, value});
     }
     
-    log("Identifier::call", text, function_scope.serialize());
+    log(
+        "JSFunction::call push, name =",
+        declaration.name.text,
+        "function_scope =",
+        function_scope.serialize(),
+        "local_chain =",
+        local_chain_.serialize()
+        );
     
-    chain.scopes.push_back(function_scope);
-    auto function_return_value = function->execute(chain);
-    chain.scopes.pop_back();
+    auto new_chain = chain.add(local_chain_).add(function_scope);
+    auto function_return_value = declaration.execute(new_chain);
+    log("JSFunction::call pop, name =", declaration.name.text);
     
     return function_return_value;
   }
-  
-  return std::make_shared<JSUndefined>();
+};
+
+// FunctionDeclaration
+std::shared_ptr<JSValue> FunctionDeclaration::evaluate(Chain &chain) const {
+  log("FunctionDeclaration::evaluate", name.text);
+  auto function_value = std::make_shared<JSFunction>(*this, chain);
+  chain.scopes.back().values.insert({ name.text, function_value });
+  return nullptr;
+}
+std::shared_ptr<JSValue> FunctionDeclaration::execute(Chain &chain) const {
+  log("FunctionDeclaration::execute", name.text);
+  for (const auto &statement : body.statements) {
+    auto value = statement->evaluate(chain);
+    if (value) {
+      return value;
+    }
+  }
+  return nullptr;
+}
+StatementKind FunctionDeclaration::getKind() const { return kind; }
+
+void Identifier::visit() const { printf("Visit Identifier\n"); }
+std::shared_ptr<JSValue> Identifier::evaluate(Chain &chain) const {
+  auto value = chain.lookup_value(text);
+  log("Identifier::evaluate", text, "=", value->serialize());
+  return value;
 }
 
 class TrueKeyword : public Expression {
@@ -233,12 +248,6 @@ public:
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSBoolean>(true);
   }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
-  }
 };
 
 class FalseKeyword : public Expression {
@@ -247,12 +256,6 @@ public:
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSBoolean>(false);
-  }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
   }
 };
 
@@ -266,12 +269,6 @@ public:
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     return std::make_shared<JSNumber>(std::stod(text));
-  }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
   }
 };
 
@@ -311,12 +308,6 @@ public:
       }
     }
   }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
-  }
 };
 
 class ConditionalExpression : public Expression {
@@ -341,12 +332,6 @@ public:
       return whenFalse->evaluate(chain);
     }
   }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
-  }
 };
 
 class CallExpression : public Expression {
@@ -361,7 +346,6 @@ public:
   void visit() const override { printf("Visit CallExpression\n"); }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
-    
     std::vector<std::shared_ptr<JSValue>> values{};
     
     for (const auto& argument : arguments) {
@@ -369,15 +353,13 @@ public:
       values.push_back(value);
     }
     
-    log("CallExpression::evaluate", values.size());
+    log("CallExpression::evaluate,", values.size(), "argument(s)");
     
-    return expression->call(chain, values);
-  }
-  
-  std::shared_ptr<JSValue>
-  call(Chain &chain,
-       std::vector<std::shared_ptr<JSValue>> values) const override {
-    return std::make_shared<JSUndefined>();
+    auto value = expression->evaluate(chain);
+    
+    log("CallExpression::evaluate, got value", value->serialize());
+    
+    return value->call(chain, values);
   }
 };
 
@@ -390,11 +372,6 @@ public:
   IfStatement(const BinaryExpression expression, const Block thenStatement)
   : kind(StatementKind::If), thenStatement(thenStatement),
   expression(expression){};
-  
-  void visit() const override {
-    printf("Visit IfStatement\n");
-    expression.visit();
-  }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     auto value = expression.evaluate(chain);
@@ -418,11 +395,6 @@ public:
   
   ReturnStatement(const std::shared_ptr<Expression> expression)
   : kind(StatementKind::Return), expression(expression){};
-  
-  void visit() const override {
-    printf("Visit ReturnStatement\n");
-    expression->visit();
-  }
   
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     log("ReturnStatement::evaluate");
@@ -449,10 +421,6 @@ public:
   VariableStatement(const VariableDeclarationList declarationList)
   : kind_(StatementKind::VariableStatement), declarationList_(declarationList) {};
   
-  void visit() const override {
-    printf("Visit VariableStatement\n");
-  }
-  
   std::shared_ptr<JSValue> evaluate(Chain &chain) const override {
     log("ReturnStatement::evaluate");
     
@@ -471,13 +439,6 @@ public:
   const std::string fileName;
   std::vector<std::shared_ptr<Statement>> statements;
   
-  void visit() const {
-    printf("Visit SourceFile\n");
-    for (auto &statement : statements) {
-      statement->visit();
-    }
-  }
-  
   void evaluate(Chain &chain) const {
     log("SourceFile::evaluate");
     for (const auto &statement : statements) {
@@ -486,44 +447,67 @@ public:
   }
 };
 
-void Chain::load(const SourceFile &sourceFile) { sourceFile.evaluate(*this); }
+void Chain::load(const SourceFile &sourceFile) {
+  sourceFile.evaluate(*this);
+}
+
+Chain Chain::add(const Chain& chain) const {
+  auto result = Chain{};
+  result.scopes.insert(result.scopes.end(), this->scopes.begin(), this->scopes.end());
+  result.scopes.insert(result.scopes.end(), chain.scopes.begin(), chain.scopes.end());
+  return result;
+}
+
+Chain Chain::add(const Scope& scope) const {
+  auto result = Chain{};
+  result.scopes.insert(result.scopes.end(), this->scopes.begin(), this->scopes.end());
+  result.scopes.push_back(scope);
+  return result;
+}
 
 std::string Scope::serialize() const {
   std::string result = "Scope {";
   
+  bool first = true;
   for (const auto &value : values) {
+    if (!first) {
+      result += ", ";
+    }
     result += value.first + " = " + value.second->serialize();
+    first = false;
+  }
+  
+  return result + "}";
+};
+
+std::string Chain::serialize() const {
+  std::string result = "Chain {";
+  
+  bool first = true;
+  for (const auto& scope: scopes) {
+    if (!first) {
+      result += ", ";
+    }
+    result += scope.serialize();
+    first = false;
   }
   
   return result + "}";
 };
 
 std::shared_ptr<JSValue> Chain::lookup_value(const std::string name) const {
-  for (size_t i = scopes.size() - 1; i >= 0; --i) {
-    auto scope = scopes[i];
-    
+  for (std::vector<Scope>::const_reverse_iterator i = scopes.rbegin(); i != scopes.rend(); ++i) {
+    auto scope = *i;
     auto it = scope.values.find(name);
     if (it != scope.values.end()) {
       return it->second;
     }
   }
-  
   return std::make_shared<JSUndefined>();
 }
 
 void Chain::set_value(const std::string name, std::shared_ptr<JSValue> value) {
   scopes.back().values.insert({ name, value });
-}
-
-std::shared_ptr<FunctionDeclaration>
-Chain::lookup_function(const std::string name) const {
-  for (auto scope : scopes) {
-    auto it = scope.functions.find(name);
-    if (it != scope.functions.end()) {
-      return it->second;
-    }
-  }
-  return nullptr;
 }
 
 // see js/fib.js
@@ -581,8 +565,6 @@ SourceFile createFibonacciProgram() {
 SourceFile createLetProgram() {
   auto source_file = SourceFile{ "./js/let.js" };
   
-  auto identifier_main = Identifier { "main" };
-  
   auto let_a = std::make_shared<VariableStatement>(VariableDeclarationList {{
     VariableDeclaration { Identifier { "a" }, std::make_shared<NumericLiteral>("1") }
   }});
@@ -592,9 +574,9 @@ SourceFile createLetProgram() {
     VariableDeclaration { Identifier { "b" }, std::make_shared<NumericLiteral>("2") }
   }});
   source_file.statements.push_back(let_b);
-
+  
   auto function_declaration_main = FunctionDeclaration {
-    identifier_main,
+    Identifier { "main" },
     Block({ std::make_shared<ReturnStatement>(std::make_shared<BinaryExpression>(std::make_shared<Identifier>("a"), Token::Plus, std::make_shared<Identifier>("b"))) }),
     {}
   };
@@ -603,20 +585,66 @@ SourceFile createLetProgram() {
   return source_file;
 }
 
+// see js/closure.js
+SourceFile createClosureProgram() {
+  auto source_file = SourceFile{ "./js/closure.js" };
+  
+  // inner
+  auto function_declaration_inner = FunctionDeclaration {
+    Identifier { "inner" },
+    Block({
+      std::make_shared<ReturnStatement>(std::make_shared<BinaryExpression>(std::make_shared<Identifier>("a"), Token::Plus, std::make_shared<Identifier>("b")))
+    }),
+    {
+      Parameter{ Identifier{ "b" } }
+    }
+  };
+  
+  // sum
+  auto function_declaration_sum = FunctionDeclaration {
+    Identifier { "sum" },
+    Block({
+      std::make_shared<FunctionDeclaration>(function_declaration_inner),
+      std::make_shared<ReturnStatement>(std::make_shared<Identifier>("inner"))
+    }),
+    {
+      Parameter{ Identifier{ "a" } }
+    }
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_sum));
+  
+  // main
+  std::vector<std::shared_ptr<Expression>> args_inner = {std::make_shared<NumericLiteral>("40")};
+  auto call_expression_inner = std::make_shared<CallExpression>(std::make_shared<Identifier>("sum"), args_inner);
+  
+  std::vector<std::shared_ptr<Expression>> args_outer = {std::make_shared<NumericLiteral>("2")};
+  auto call_expression_outer = std::make_shared<CallExpression>(call_expression_inner, args_outer);
+  
+  auto function_declaration_main = FunctionDeclaration {
+    Identifier { "main" },
+    Block({ std::make_shared<ReturnStatement>(call_expression_outer) }),
+    {}
+  };
+  source_file.statements.push_back(std::make_shared<FunctionDeclaration>(function_declaration_main));
+  
+  return source_file;
+}
+
 std::shared_ptr<JSValue> createScopeAndEvaluate(SourceFile source_file) {
-  auto globalScope = Scope{};
-  auto chain = Chain{};
+  auto globalScope = Scope {};
+  auto chain = Chain {};
+  
   chain.scopes.push_back(globalScope);
   
   chain.load(source_file);
   
-  auto main_function = chain.lookup_function("main");
+  auto main_function = chain.lookup_value("main");
   if (!main_function) {
     log("No main function!");
     return nullptr;
   }
   
-  return main_function->execute(chain);
+  return main_function->call(chain, {});
 }
 
 int main(int argc, const char *argv[]) {
@@ -641,6 +669,17 @@ int main(int argc, const char *argv[]) {
     std::cout << source_file.fileName << ": " << serialized_value << std::endl;
     assert(serialized_value == "3.000000");
   }
-
+  
+  {
+    auto source_file = createClosureProgram();
+    auto value = createScopeAndEvaluate(source_file);
+    if (!value) {
+      return 1;
+    }
+    auto serialized_value = value->serialize();
+    std::cout << source_file.fileName << ": " << serialized_value << std::endl;
+    assert(serialized_value == "42.000000");
+  }
+  
   return 0;
 }
